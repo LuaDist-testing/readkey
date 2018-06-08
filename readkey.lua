@@ -7,8 +7,8 @@
 ---------------------------------------------------------------------
 
 local M = {} -- public interface
-M.Version = '1.4'  -- works with lua 5.3
-M.VersionDate = '17apr2015'
+M.Version = '1.5'  --
+M.VersionDate = '19sep2017'
 
 --  luaposix now has tcgetattr and tcsetattr and the constants ECHONL etc !
 --  https://github.com/luaposix/luaposix/blob/master/examples/termios.lua
@@ -81,8 +81,10 @@ local function save_attributes(fd)  -- also calculates our other settings
 	attrs[1]['lflag'] = B.bor(attrs[0]['lflag'], P.ISIG + P.ICANON)
 	attrs[2] = deepcopy(attrs[1]) -- cooked mode with echo off
 	-- (2) -echo -echoe -echok -echoctl -echoke
-	attrs[2]['lflag'] = B.band(attrs[1]['lflag'],
-	  B.bnot(P.ECHO + P.ECHOE + P.ECHOK + P.ECHOCTL + P.ECHOKE))
+	local tmp = P.ECHO + P.ECHOE + P.ECHOK
+	if P.ECHOCTL then tmp = tmp + P.ECHOCTL end  -- v1.5 20170919
+	if P.ECHOKE  then tmp = tmp + P.ECHOKE  end  -- v1.5 20170919
+	attrs[2]['lflag'] = B.band(attrs[1]['lflag'], B.bnot(tmp))
 	attrs[3] = deepcopy(attrs[2])  -- cbreak mode.
 	-- (3) -icanon -echo -echoe -echok -echoctl -echoke
 	attrs[3]['lflag'] = B.band(attrs[2]['lflag'], B.bnot(P.ICANON))
