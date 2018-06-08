@@ -7,8 +7,8 @@
 ---------------------------------------------------------------------
 
 local M = {} -- public interface
-M.Version = '1.2'  -- ReadKey restarts the P.read() after interrupt
-M.VersionDate = '22oct2013'
+M.Version = '1.3'  -- try xwininfo; switch doc over to using moonrocks
+M.VersionDate = '08jun2014'
 
 --  luaposix now has tcgetattr and tcsetattr and the constants ECHONL etc !
 --  https://github.com/luaposix/luaposix/blob/master/examples/termios.lua
@@ -273,7 +273,6 @@ function M.ReadKey( mode, file )
 	end
 end
 
--- function M.ReadLine( mode, filehandle )
 function M.ReadLine( prompt, histfile )
 	--  0 normal read using getc,  -1 non-blocked read,  >0 timed read
 	local using_hist = false
@@ -600,22 +599,23 @@ The list of valid names is the keys of I<GetControlChars()>
 =head1 DOWNLOAD
 
 This module is available as a LuaRock in
-http://luarocks.org/repositories/rocks/index.html#readkey
+http://rocks.moonscript.org/modules/peterbillam
 so you should be able to install it with the command:
 
  $ su
  Password:
- # luarocks install readkey
+ # luarocks install --server=http://rocks.moonscript.org readkey
 
 or:
 
- # luarocks install http://www.pjb.com.au/comp/lua/termreadkey-1.2-0.rockspec
+ # luarocks install http://www.pjb.com.au/comp/lua/termreadkey-1.3-0.rockspec
 
 The Perl module is available from CPAN at
 http://search.cpan.org/perldoc?Term::ReadKey
 
 =head1 CHANGES
 
+ 20140608 1.3 try xwininfo; switch doc over to using moonrocks
  20131021 1.2 xwininfo lets GetTerminalSize work even after ReadLine
  20131021     ReadKey restarts the P.read() after any EINTR interrupt
  20131005 1.1 GetTerminalSize returns numbers, ReadMode no longer sets ISTRIP
@@ -629,13 +629,13 @@ see http://www.pjb.com.au/comp/contact.html
 =head1 SEE ALSO
 
  http://search.cpan.org/perldoc?Term::ReadKey
- http://www.pjb.com.au/comp/lua/termreadkey.html
- http://luarocks.org/repositories/rocks/index.html#readkey
- http://www.pjb.com.au/comp/lua/terminfo.html
- http://luarocks.org/repositories/rocks/index.html#terminfo
+ http://www.pjb.com.au/comp/lua/readkey.html
+ http://rocks.moonscript.org/modules/peterbillam/readkey
  http://www.pjb.com.au/comp/lua/readline.html
- http://luarocks.org/repositories/rocks/index.html#readline
- http://luarocks.org/repositories/rocks/index.html#luaposix
+ http://rocks.moonscript.org/modules/peterbillam/readline
+ http://www.pjb.com.au/comp/lua/terminfo.html
+ http://rocks.moonscript.org/modules/peterbillam/terminfo
+ http://rocks.moonscript.org/modules/gvvaughan/luaposix
 
 =cut
 

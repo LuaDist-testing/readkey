@@ -1,16 +1,16 @@
 -- This file was automatically generated for the LuaDist project.
 
 package = "readkey"
-version = "1.2-1"
+version = "1.3-0"
 -- LuaDist source
 source = {
-  tag = "1.2-1",
+  tag = "1.3-0",
   url = "git://github.com/LuaDist-testing/readkey.git"
 }
 -- Original source
 -- source = {
---    url = "http://www.pjb.com.au/comp/lua/readkey-1.2.tar.gz",
---    md5 = "016fc07770b2ea96841b39209c3af1a5"
+--    url = "http://www.pjb.com.au/comp/lua/readkey-1.3.tar.gz",
+--    md5 = "2aa8598001945d793408af327aae1a3d"
 -- }
 description = {
    summary = "simple terminal control, like CPAN's Term::ReadKey",
@@ -25,14 +25,27 @@ description = {
    license = "MIT/X11"
 }
 dependencies = {
-   "lua >= 5.1", "luaposix >= 31", "readline >= 1.1", "terminfo >= 1.1"
+   "lua >=5.1, <5.3",
+   "luaposix >= 31",
+   "readline >= 1.3",
+   "terminfo >= 1.1",
 }
+-- external_dependencies = {
+--   ALSA = {
+--      header  = "alsa/asoundlib.h",
+--      library = "asound",
+--   }
+-- }
 build = {
    type = "builtin",
    modules = {
-      ReadKey = "readkey.lua"
+      ["readkey"] = "readkey.lua",
+--    ["C-readkey"] = {
+--       sources   = { "C-readkey.c" },
+--         incdirs   = { "$(ALSA_INCDIR)" },
+--         libdirs   = { "$(ALSA_LIBDIR)" },
+--         libraries = { "asound" },
+--    }
    },
-   copy_directories = {
-      "doc", "test"
-   }
+   copy_directories = { "doc", "test" }
 }
