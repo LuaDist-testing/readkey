@@ -7,9 +7,8 @@
 ---------------------------------------------------------------------
 
 local M = {} -- public interface
-M.Version = '1.1'  -- ReadMode no longer spuriously sets ISTRIP
-M.VersionDate = '05oct2013'
-
+M.Version = '1.2'  -- ReadKey restarts the P.read() after interrupt
+M.VersionDate = '22oct2013'
 
 --  luaposix now has tcgetattr and tcsetattr and the constants ECHONL etc !
 --  https://github.com/luaposix/luaposix/blob/master/examples/termios.lua
@@ -38,6 +37,7 @@ local function exists(fn)
 	local f=io.open(fn,'r')
 	if f then f:close(); return true else return false end
 end
+
 local function deepcopy(object)  -- http://lua-users.org/wiki/CopyTable
 	local lookup_table = {}
 	local function _copy(object)
@@ -152,46 +152,52 @@ local num2ccname = {
 local ccname2num = {}
 for k,v in pairs(num2ccname) do ccname2num[v] = k end  -- reverse
 
---local Userdata2fd = {}
 function descriptor2fd(file)
 	if     type(file) == 'number' then   -- its a posix int fd
 		return file
 	elseif type(file) == 'userdata' then -- its a lua filedescriptor
---		if Userdata2fd[file] then return Userdata2fd[file] end -- cached ?
 		return P.fileno(file)   -- 20130919 :-)
---[[
-		local getpid = P.getpid() -- io.tmpfile won't do, we need a string
-		local tmp = '/tmp/readkey'..tostring(getpid['pid'])
-		local pid = P.fork()  -- fork:
-		if pid == 0 then  -- the child straces itself to a tmpfile
-			local getpid = P.getpid()
-			local pid = getpid['pid']
-			os.execute('strace -q -p '..pid..' -e trace=desc -o '..tmp..' &')
-			-- the first seek() wins the race condition, so we loop
-			for i= 1,5 do -- repeat until the tmpfile has non-zero size
-				P.nanosleep(0,30000000) -- 0.03 sec
-				local current = file:seek()  -- should do no damage...
-				P.nanosleep(0,30000000) -- 0.03 sec
-				local stat = P.stat(tmp)     -- did strace capture it ?
-				if stat['size'] > 1 then break end
-			end
-			os.exit() --  child exits, causing strace to exit
-		else -- the parent waits; then parses and removes the tmpfile
-			P.wait()
-			local f = assert(io.open(tmp,'r'))
-			local s = f:read('*all')
-			f:close()
-			P.unlink(tmp)
-			local fd = tonumber(string.match(s,'seek%((%d+)'))
-			Userdata2fd[file] = fd -- cache by userdata to save time next time
-			return fd
-		end
---]]
-	else return 0
+	else
+		return 0
 	end
 end
 
+local function _debug(s)
+    local DEBUG = io.open('/tmp/debug', 'a')
+    DEBUG:write(s.."\n")
+    DEBUG:close()
+end
+
+local function split(s, pattern, maxNb) -- http://lua-users.org/wiki/SplitJoin
+	if not s or string.len(s)<2 then return {s} end
+	if not pattern then return {s} end
+	if maxNb and maxNb <2 then return {s} end
+	local result = { }
+	local theStart = 1
+	local theSplitStart,theSplitEnd = string.find(s,pattern,theStart)
+	local nb = 1
+	while theSplitStart do
+		table.insert( result, string.sub(s,theStart,theSplitStart-1) )
+		theStart = theSplitEnd + 1
+		theSplitStart,theSplitEnd = string.find(s,pattern,theStart)
+		nb = nb + 1
+		if maxNb and nb >= maxNb then break end
+	end
+	table.insert( result, string.sub(s,theStart,-1) )
+	return result
+end
+
+
+local function which(s)
+	local f
+	for i,d in ipairs(split(os.getenv('PATH'), ':')) do
+		f=d..'/'..s; if P.access(f, 'x') then return f end
+	end
+	return nil
+end
+
 ------------------------------ public ------------------------------
+
 function M.ReadMode( mode, file )
 	mode = modes[mode]
 	if mode == nil then return false end  -- should complain
@@ -208,7 +214,23 @@ function M.ReadKey( mode, file )
 	--  0 normal read using getc,  -1 non-blocked read,  >0 timed read
 	local fd = descriptor2fd(file)
 	if mode == 0 then
-		return P.read(fd,1)
+		if CurrentMode[fd] and CurrentMode[fd] > 3 then
+			while true do  -- 1.2
+				local rc,msg,err = P.read(fd,1)
+				-- SIGWINCH interrupts the read :-( which we don't want
+				-- see man 7 signal, set SA_RESTART when creating the handler.
+				-- SA_RESTART is defined in /usr/include/*/signal.h
+				-- but luaposix does not define SA_RESTART; so, by hand:
+				if rc then return rc end
+				-- if string.match(msg, '^Interrupted') then   -- slower.
+				-- luaposix doesn't document this err, but it exists.
+				if err ~= P.EINTR then return '' end
+				-- _debug('ReadKey received EINTR; looping...')
+			end
+		else
+			return P.read(fd,1)
+		end
+		return nil  -- shouldn't reach here...
 	elseif mode == -1 then
 		-- http://linux.die.net/man/2/poll
 		-- http://man7.org/linux/man-pages/man2/poll.2.html
@@ -271,26 +293,62 @@ function M.GetTerminalSize()
 -- http://man7.org/linux/man-pages/man4/tty_ioctl.4.html
 -- Use of ioctl makes for nonportable programs.  Use the POSIX interface
 -- described in termios(3) whenever possible; but there's no TIOCGWINSZ :-(
-	local width     = os.getenv('COLUMNS')
-	local height    = os.getenv('LINES')
-	local pixwidth  = 0
-	local pixheight = 0
+-- could read /usr/include/asm-generic/ioctls.h (and convert hex to decimal)
+
+-- NASTY BUG :-(  before ReadLine has been used, all these methods respond
+-- to size changes as expected :-) but after ReadLine has been invoked,
+-- ENV, terminfo, tput and resize get the current size the first time,
+-- but no longer respond to changes in the size for the life of the process :-(
+-- also stty size; they all use the same ioctl(0, TIOCGWINSZ :-(
+-- Presumably the SIGWINCH handler which the kernel used has got zapped :-(
+-- http://www.softlab.ntua.gr/facilities/documentation/unix/gnu/readline/readline_43.html
+-- Therefore, in 1.3, introduce  xwininfo -i $WINDOWID
+
+	local width, height
+
+	-- xwininfo introduced in 1.3
+	local xwininfo = which('xwininfo')  -- do we have xwininfo ?
+	if xwininfo and os.getenv('WINDOWID') then
+		-- _debug('GetTerminalSize: using xwininfo')
+		local p = io.popen(xwininfo..' -id '..os.getenv('WINDOWID'),'r')
+		local txt = ''
+		if p then txt = p:read('*all'); p:close() end
+		local pixwidth  = tonumber(string.match(txt, 'Width:%s(%d+)') or 0)
+		local pixheight = tonumber(string.match(txt, 'Height:%s(%d+)') or 0)
+		width, height   = string.match(txt, '-geometry%s(%d+)x(%d+)')
+		width  = tonumber(width)
+		height = tonumber(height)
+		if width and width>0.5 and height and height>0.5 then
+			return width, height, pixwidth, pixheight
+		end
+	end
+
+	-- because all these other methods use  ioctl(0, TIOCGWINSZ
+	-- but readline seems to zap the kernel's SIGWINCH handler :-(
+	width     = os.getenv('COLUMNS')
+	height    = os.getenv('LINES')
 	if width and height then
-		return tonumber(width), tonumber(height), pixwidth, pixheight
+		-- _debug('GetTerminalSize: using getenv')
+		return tonumber(width), tonumber(height), 0, 0
 	end
+
 	if T then  -- do we have the terminfo module ?
-		return T.get('cols'), T.get('lines'), pixwidth, pixheight
+		-- _debug('GetTerminalSize: using terminfo')
+		return T.get('cols'), T.get('lines'), 0, 0
 	end
-	local tput = '/usr/bin/tput'  -- do we have tupt ?
-	if exists(tput) then
+
+	local tput = which('tput')  -- do we have tput ?
+	if tput then
+		-- _debug('GetTerminalSize: using tput')
 		local p = io.popen(tput..' cols','r')
 		if p then width = p:read('*n'); p:close() end
 		local p = io.popen(tput..' lines','r')
 		if p then height = p:read('*n'); p:close() end
 		if width and width>0.5 and height and height>0.5 then
-			return width, height, pixwidth, pixheight
+			return width, height, 0, 0
 		end
 	end
+
 	local we_have_resize = false  -- do we have resize ?
 	local resize = '/usr/bin/resize'
 	if exists(resize) then we_have_resize=true
@@ -299,6 +357,7 @@ function M.GetTerminalSize()
 		if exists(resize) then we_have_resize=true end
 	end
 	if we_have_resize then
+		-- _debug('GetTerminalSize: using resize')
 		local p = io.popen(resize..' 2>/dev/null', 'r')
 		if p then
 			local o = p:read('*all'); p:close()
@@ -308,14 +367,17 @@ function M.GetTerminalSize()
 			if not height or height < 0.5 then
 				height = tonumber(string.match(o,"LINES[ =]+(%d+)"))
 			end
+			return width, height, 0, 0
 		end
 	end
+
 	if not width  or width  < 0.5 then width  = 80 end
 	if not height or height < 0.5 then height = 25 end
-	return width, height, pixwidth, pixheight
+	return width, height, 0, 0
 end
 
 function M.SetTerminalSize( width, height, xpix, ypix, filedescriptor )
+	-- don't do this.
 	return nil
 end
 
@@ -435,10 +497,11 @@ and, if possible, parity will be disabled.
 If you are executing another program that may be changing the terminal mode,
 you will either want to say
 
-    K.ReadMode(1)
+    local tty = io.open(P.ctermid(), 'a+')
+    K.ReadMode(1, tty)
     ...
     os.execute('someprogram')
-    K.ReadMode(1)
+    K.ReadMode(1, tty)
 
 which resets the settings after the program has run, or:
 
@@ -458,15 +521,19 @@ Takes an integer argument, which can be one of the following values:
     -1   Perform a non-blocked read
     >0   Perform a timed read
 
-If I<mode> is zero, I<ReadKey()> will act like a normal I<getc>.
-If I<mode> is less then zero, 
+If I<mode> is zero, I<ReadKey()> will wait for input, like a normal I<getc()>
+(since version 1.2,
+if the I<filehandle> has been set to I<raw> or I<ultra-raw>,
+the underlying I<read()> call is restarted after any interrupt).
+If I<mode> is less than zero, 
 I<ReadKey> will return I<nil> immediately
 unless a character is waiting in the buffer.
-If I<mode> is greater then zero, then I<ReadKey> will use it
+If I<mode> is greater than zero, then I<ReadKey> will use it
 as a timeout value in seconds (fractional seconds are allowed),
 and won't return I<nil> until that time expires.
 
 If the filehandle is not supplied, it will default to STDIN.
+
 
 =item ReadLine( prompt, histfile )
 
@@ -483,11 +550,19 @@ will not work, and no history-file will be created.
 
 =item GetTerminalSize( [filehandle] )
 
-Returns a four element array containing:
+Returns four numbers:
 the width and height of the terminal in characters,
 and the width and height in pixels.
-The pixel sizes, however, are both returned as I<nil>; they would need
-the I<ioctl> command with the non-POSIX I<TIOCGWINSZ> parameter.
+
+Since version 1.2, I<xwininfo -id $WINDOWID> is used if possible,
+since it returns up-to-date information even after I<ReadLine()>
+has been invoked.
+
+If I<xwininfo> is not available, various other means are tried,
+which all fail to respond to size-changes that occur after
+I<ReadLine()> has been invoked;
+also the pixel sizes are returned as zero (they would need
+the I<ioctl> command with the non-POSIX I<TIOCGWINSZ> parameter).
 
 =item GetControlChars( [filehandle] )
 
@@ -534,13 +609,15 @@ so you should be able to install it with the command:
 
 or:
 
- # luarocks install http://www.pjb.com.au/comp/lua/termreadkey-1.0-0.rockspec
+ # luarocks install http://www.pjb.com.au/comp/lua/termreadkey-1.2-0.rockspec
 
 The Perl module is available from CPAN at
 http://search.cpan.org/perldoc?Term::ReadKey
 
 =head1 CHANGES
 
+ 20131021 1.2 xwininfo lets GetTerminalSize work even after ReadLine
+ 20131021     ReadKey restarts the P.read() after any EINTR interrupt
  20131005 1.1 GetTerminalSize returns numbers, ReadMode no longer sets ISTRIP
  20130922 1.0 first working version
 
