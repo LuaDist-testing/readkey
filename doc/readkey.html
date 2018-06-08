@@ -1,0 +1,237 @@
+<HTML><HEAD><TITLE>readkey.lua</TITLE>
+<LINK rel=stylesheet type="text/css"
+href="../styles.css" title="PJB Computing Styles">
+<META HTTP-EQUIV="Keywords"
+CONTENT="stty, raw, cooked, Lua, module, luarocks">
+</HEAD>
+<BODY LINK="#000066" VLINK="#000066" ALINK="#000066">
+<DIV>
+<H1><IMG SRC="../logo.gif" ALT=" " WIDTH=81 HEIGHT=32>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+<FONT COLOR="#800000"><I>readkey.lua</I></FONT>
+</H1>
+
+<!-- INDEX BEGIN -->
+<A NAME="index"></A>
+
+<TABLE ALIGN="center" WIDTH="85%" BORDER=0 CELLSPACING=0>
+<TR><TD ALIGN="left">
+<ul>
+    <li><a href="#name">NAME</a></li>
+    <li><a href="#synopsis">SYNOPSIS</a></li>
+</ul>
+</TD><TD ALIGN="left">
+<ul>
+    <li><a href="#description">DESCRIPTION</a></li>
+    <li><a href="#functions">FUNCTIONS</a></li>
+</ul>
+</TD><TD ALIGN="left">
+<ul>
+    <li><a href="#download">DOWNLOAD</a></li>
+    <li><a href="#changes">CHANGES</a></li>
+</ul>
+</TD><TD ALIGN="left">
+<ul>
+    <li><a href="#author">AUTHOR</a></li>
+    <li><a href="#see_also">SEE ALSO</a></li>
+</ul>
+</TD></TR></TABLE>
+
+<!-- INDEX END -->
+
+<p>
+</p>
+<hr />
+<h2><a name="name">NAME</a></h2>
+<p>readkey.lua - simple terminal control, like CPAN's Term::ReadKey</p>
+<p>
+</p>
+<hr />
+<h2><a name="synopsis">SYNOPSIS</a></h2>
+<pre>
+ local K = require 'readkey'
+ local P = require 'posix'
+ local tty = io.open(P.ctermid(), 'a+') -- the controlling terminal
+ K.ReadMode( 4, tty )  -- Turn off controls keys
+ local key
+ while true do
+      key = K.ReadKey( -1, tty )
+      if key then break end
+      do_something_else_meanwhile()  -- no key yet...
+ end
+ print(&quot;You pressed key: &quot;..key)
+ K.ReadMode( 0, tty ) -- Reset tty mode before exiting</pre>
+<p>
+</p>
+<hr />
+<h2><a name="description">DESCRIPTION</a></h2>
+<p>This Lua module is dedicated to providing simple
+control over terminal modes (cbreak, raw, cooked, etc.),
+and support for non-blocking reads,
+and some handy functions for working with terminals.</p>
+<p>This module started as a re-expression in Lua of
+the <I>Term::ReadKey</I> Perl module by Kenneth Albanowski and Jonathan Stowe.
+The calling interface is similar,
+except that <I>ReadLine()</I> has quite different functionality,
+and <I>SetTerminalSize()</I> and <I>GetSpeeds()</I> are not implemented.</p>
+<p>
+</p>
+<hr />
+<h2><a name="functions">FUNCTIONS</a></h2>
+<dl>
+<dt><B><a name="readmode" class="item">ReadMode( mode [, filehandle] )</a></B></dt>
+
+<dd>
+<p>Takes an integer argument, which can be one of the following 
+values:</p>
+<pre>
+  0  Restore original settings
+  1  Change to cooked mode
+  2  Change to cooked mode with echo off  (Good for passwords)
+  3  Change to cbreak mode
+  4  Change to raw mode
+  5  Change to ultra-raw mode  (LF to CR/LF translation turned off)</pre>
+<p>Or, you may use the synonyms:</p>
+<pre>
+  'restore', 'normal', 'noecho', 'cbreak', 'raw', 'ultra-raw'</pre>
+<p>These functions are automatically applied to <I>io.stdin</I> if no
+other filehandle is supplied.
+Mode 0 not only restores original settings, but it will cause
+the next <I>ReadMode</I> call to save a new set of default settings.
+Mode 5 is similar to mode 4, except no CR/LF translation is performed,
+and, if possible, parity will be disabled.</p>
+<p>If you are executing another program that may be changing the terminal mode,
+you will either want to say</p>
+<pre>
+    K.ReadMode(1)
+    ...
+    os.execute('someprogram')
+    K.ReadMode(1)</pre>
+<p>which resets the settings after the program has run, or:</p>
+<pre>
+    somemode = 1
+    K.ReadMode(0)
+    os.execute('someprogram')
+    K.ReadMode(1)</pre>
+<p>which records any changes the program may have made, before resetting the
+mode.</p>
+</dd>
+<dt><B><a name="readkey" class="item">ReadKey( mode [, filehandle] )</a></B></dt>
+
+<dd>
+<p>Takes an integer argument, which can be one of the following values:</p>
+<pre>
+     0   Perform a normal read using getc
+    -1   Perform a non-blocked read
+    &gt;0   Perform a timed read</pre>
+<p>If <I>mode</I> is zero, <I>ReadKey()</I> will act like a normal <I>getc</I>.
+If <I>mode</I> is less then zero, 
+<I>ReadKey</I> will return <I>nil</I> immediately
+unless a character is waiting in the buffer.
+If <I>mode</I> is greater then zero, then <I>ReadKey</I> will use it
+as a timeout value in seconds (fractional seconds are allowed),
+and won't return <I>nil</I> until that time expires.</p>
+<p>If the filehandle is not supplied, it will default to STDIN.</p>
+</dd>
+<dt><B><a name="readline" class="item">ReadLine( prompt, histfile )</a></B></dt>
+
+<dd>
+<p>The syntax of this call is nothing like that of its Perl equivalent.
+It invokes the GNU Readline and History libraries,
+which display the <I>prompt</I>, allow Tab-Filename-Completion,
+and optionally save the line entered onto the end of the <I>histfile</I>,
+whose contents are available by the Up-Arrow. For example:</p>
+<pre>
+ local str = K.ReadLine('Delete which file ? ', '~/.filemanager_history')</pre>
+<p>If the <I>histfile</I> parameter is <I>nil</I>, the Up and Down Arrows
+will not work, and no history-file will be created.</p>
+</dd>
+<dt><B><a name="getterminalsize" class="item">GetTerminalSize( [filehandle] )</a></B></dt>
+
+<dd>
+<p>Returns a four element array containing:
+the width and height of the terminal in characters,
+and the width and height in pixels.
+The pixel sizes, however, are both returned as <I>nil</I>; they would need
+the <I>ioctl</I> command with the non-POSIX <I>TIOCGWINSZ</I> parameter.</p>
+</dd>
+<dt><B><a name="getcontrolchars" class="item">GetControlChars( [filehandle] )</a></B></dt>
+
+<dd>
+<p>Returns a table containing key/value pairs.
+Each key is the name of the control-character/signal,
+and its value is that character, as a single character,
+except for MIN and TIME, which are integers.</p>
+<p>Each key will be an entry from the following list:</p>
+<pre>
+    DISCARD EOF EOL EOL2 ERASE ERASEWORD INTERRUPT KILL
+    MIN QUIT QUOTENEXT REPRINT START STOP SUSPEND TIME</pre>
+<p>The keys SWITCH and STATUS,
+which are supported by the Term::ReadKey CPAN module,
+are not present here because they are not specified by POSIX.</p>
+<p>Thus, the following will give you the current interrupt character:</p>
+<pre>
+    local keys = K.GetControlChars()
+    interrupt_char = keys['INTERRUPT']</pre>
+</dd>
+<dt><B><a name="setcontrolchars" class="item">SetControlChars( new_ccs [, filehandle] )</a></B></dt>
+
+<dd>
+<p>Takes a table containing key/value pairs.
+Each key should be the name of a legal control-character or signal,
+and its value should be either a single character,
+or a number in the range 0-255.
+<I>SetControlChars</I> may die with a runtime error if an invalid
+character name is passed or there is an error changing the settings.
+The list of valid names is the keys of <I>GetControlChars()</I></p>
+</dd>
+</dl>
+<p>
+</p>
+<hr />
+<h2><a name="download">DOWNLOAD</a></h2>
+<p>This module is available as a LuaRock in
+<a href="http://luarocks.org/repositories/rocks/index.html#readkey">
+http://luarocks.org/repositories/rocks/index.html#readkey</a>
+so you should be able to install it with the command:</p>
+<pre>
+ $ su
+ Password:
+ # luarocks install readkey</pre>
+<p>or:</p>
+<pre>
+ # luarocks install http://www.pjb.com.au/comp/lua/readkey-1.0-0.rockspec</pre>
+<p>The Perl module is available from CPAN at
+<a href="http://search.cpan.org/perldoc?Term::ReadKey">
+http://search.cpan.org/perldoc?Term::ReadKey</a></p>
+<p>
+</p>
+<hr />
+<h2><a name="changes">CHANGES</a></h2>
+<pre>
+ 20130922 1.00 first working version</pre>
+<p>
+</p>
+<hr />
+<h2><a name="author">AUTHOR</a></h2>
+<p>This Lua module is by Peter Billam,
+see <a href="http://www.pjb.com.au/comp/contact.html">
+http://www.pjb.com.au/comp/contact.html</a></p>
+<p>
+</p>
+<hr />
+<h2><a name="see_also">SEE ALSO</a></h2>
+<pre>
+ <a href="http://search.cpan.org/perldoc?Term::ReadKey">http://search.cpan.org/perldoc?Term::ReadKey</a>
+ <a href="http://www.pjb.com.au/comp/lua/readkey.html">http://www.pjb.com.au/comp/lua/readkey.html</a>
+ <a href="http://luarocks.org/repositories/rocks/index.html#readkey">http://luarocks.org/repositories/rocks/index.html#readkey</a>
+ <a href="http://www.pjb.com.au/comp/lua/terminfo.html">http://www.pjb.com.au/comp/lua/terminfo.html</a>
+ <a href="http://luarocks.org/repositories/rocks/index.html#terminfo">http://luarocks.org/repositories/rocks/index.html#terminfo</a>
+ <a href="http://www.pjb.com.au/comp/lua/readline.html">http://www.pjb.com.au/comp/lua/readline.html</a>
+ <a href="http://luarocks.org/repositories/rocks/index.html#readline">http://luarocks.org/repositories/rocks/index.html#readline</a>
+ <a href="http://luarocks.org/repositories/rocks/index.html#luaposix">http://luarocks.org/repositories/rocks/index.html#luaposix</a></pre>
+
+</DIV>
+</body>
+
+</html>
