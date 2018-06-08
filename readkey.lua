@@ -7,8 +7,9 @@
 ---------------------------------------------------------------------
 
 local M = {} -- public interface
-M.Version = '1.0'
-M.VersionDate = '22sep2013'
+M.Version = '1.1'  -- ReadMode no longer spuriously sets ISTRIP
+M.VersionDate = '05oct2013'
+
 
 --  luaposix now has tcgetattr and tcsetattr and the constants ECHONL etc !
 --  https://github.com/luaposix/luaposix/blob/master/examples/termios.lua
@@ -59,9 +60,9 @@ local function save_attributes(fd)  -- also calculates our other settings
 	local attrs = {}  -- indexed by mode
 	attrs[0] = P.tcgetattr(fd)
 	attrs[1] = deepcopy(attrs[0])  -- cooked
-	-- (1) brkint ignpar istrip icrnl ixon opost isig  icanon
+	-- (1) brkint ignpar icrnl ixon opost isig  icanon
 	attrs[1]['iflag'] = B.bor(attrs[0]['iflag'],
-	  P.BRKINT + P.IGNPAR + P.ISTRIP + P.ICRNL + P.IXON)
+	  P.BRKINT + P.IGNPAR + P.ICRNL + P.IXON)
 	attrs[1]['oflag'] = B.bor(attrs[0]['oflag'], P.OPOST)
 	attrs[1]['lflag'] = B.bor(attrs[0]['lflag'], P.ISIG + P.ICANON)
 	attrs[2] = deepcopy(attrs[1]) -- cooked mode with echo off
@@ -272,9 +273,11 @@ function M.GetTerminalSize()
 -- described in termios(3) whenever possible; but there's no TIOCGWINSZ :-(
 	local width     = os.getenv('COLUMNS')
 	local height    = os.getenv('LINES')
-	local pixwidth  = nil
-	local pixheight = nil
-	if width and height then return width, height, pixwidth, pixheight end
+	local pixwidth  = 0
+	local pixheight = 0
+	if width and height then
+		return tonumber(width), tonumber(height), pixwidth, pixheight
+	end
 	if T then  -- do we have the terminfo module ?
 		return T.get('cols'), T.get('lines'), pixwidth, pixheight
 	end
@@ -538,7 +541,8 @@ http://search.cpan.org/perldoc?Term::ReadKey
 
 =head1 CHANGES
 
- 20130922 1.00 first working version
+ 20131005 1.1 GetTerminalSize returns numbers, ReadMode no longer sets ISTRIP
+ 20130922 1.0 first working version
 
 =head1 AUTHOR
 

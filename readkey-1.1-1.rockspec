@@ -1,16 +1,16 @@
 -- This file was automatically generated for the LuaDist project.
 
 package = "readkey"
-version = "1.0-1"
+version = "1.1-1"
 -- LuaDist source
 source = {
-  tag = "1.0-1",
+  tag = "1.1-1",
   url = "git://github.com/LuaDist-testing/readkey.git"
 }
 -- Original source
 -- source = {
---    url = "http://www.pjb.com.au/comp/lua/readkey-1.0.tar.gz",
---    md5 = "62a2e0a9df7a2a2670f26d453b403387"
+--    url = "http://www.pjb.com.au/comp/lua/readkey-1.1.tar.gz",
+--    md5 = "1a0b05bba2c9821cfbf439ea93b735fa"
 -- }
 description = {
    summary = "simple terminal control, like CPAN's Term::ReadKey",
@@ -27,7 +27,6 @@ description = {
 dependencies = {
    "lua >= 5.1", "luaposix >= 31", "readline >= 1.1", "terminfo >= 1.1"
 }
-external_dependencies = {}
 build = {
    type = "builtin",
    modules = {

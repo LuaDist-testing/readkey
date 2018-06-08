@@ -66,7 +66,7 @@ M.ReadMode(1, tty)
 local stty_a = get_dict_of_attributes()
 -- print("stty_a="..DataDumper(stty_a))
 ok(stty_a['opost'], 'ReadMode(1) opost')
-words = {'brkint','ignpar','istrip','icrnl','ixon','opost','isig','icanon'}
+words = {'brkint','ignpar','icrnl','ixon','opost','isig','icanon'}
 for k,w in ipairs(words) do
 	ok(stty_a[w], 'ReadMode(1) '..w)
 end
@@ -74,7 +74,7 @@ end
 M.ReadMode(2, tty)
 stty_a = get_dict_of_attributes()
 words = {
-	'brkint','ignpar','istrip','icrnl','ixon','opost','isig','icanon',
+	'brkint','ignpar','icrnl','ixon','opost','isig','icanon',
 	'-echo','-echoe','-echok','-echoctl','-echoke',
 }
 for k,w in ipairs(words) do
@@ -84,7 +84,7 @@ end
 M.ReadMode(3, tty)
 stty_a = get_dict_of_attributes()
 words = {
-	'brkint','ignpar','istrip','icrnl','ixon','opost','isig',
+	'brkint','ignpar','icrnl','ixon','opost','isig',
 	'-icanon','-echo','-echoe','-echok','-echoctl','-echoke',
 }
 for k,w in ipairs(words) do
@@ -95,7 +95,7 @@ M.ReadMode(4, tty)
 stty_a = get_dict_of_attributes()
 ok(stty_a['opost'], 'ReadMode(4) opost')
 words = {
-	'brkint','ignpar','istrip','icrnl','-ixon','opost','-isig',
+	'brkint','ignpar','icrnl','-ixon','opost','-isig',
 	'-icanon','-iexten','-echo','-echoe','-echok','-echoctl','-echoke',
 }
 for k,w in ipairs(words) do
@@ -105,7 +105,7 @@ end
 M.ReadMode(5, tty)
 stty_a = get_dict_of_attributes()
 words = {
-	'brkint','ignpar','istrip','-icrnl','-ixon','-opost','-onlcr','-isig',
+	'brkint','ignpar','-icrnl','-ixon','-opost','-onlcr','-isig',
 	'-icanon','-iexten','-echo','-echoe','-echok','noflsh','-echoctl','-echoke',
 }
 for k,w in ipairs(words) do
