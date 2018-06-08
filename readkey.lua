@@ -7,8 +7,8 @@
 ---------------------------------------------------------------------
 
 local M = {} -- public interface
-M.Version = '1.3'  -- try xwininfo; switch doc over to using moonrocks
-M.VersionDate = '08jun2014'
+M.Version = '1.4'  -- works with lua 5.3
+M.VersionDate = '17apr2015'
 
 --  luaposix now has tcgetattr and tcsetattr and the constants ECHONL etc !
 --  https://github.com/luaposix/luaposix/blob/master/examples/termios.lua
@@ -18,7 +18,21 @@ M.VersionDate = '08jun2014'
 --  http://luaposix.github.io/luaposix/docs/index.html  <== OUT-OF-DATE doc
 --  /usr/include/asm-generic/termbits.h
 local P = require 'posix'
-local B = require 'bit'  -- LuaBitOp http://bitop.luajit.org/api.html
+
+_G.BITOPS = {}  -- global because load executes in the calling context
+local B = {}
+local version = string.gsub(_VERSION, "^%D+", "")
+if tonumber(version) < 5.3 then
+	B = require 'bit'  -- LuaBitOp http://bitop.luajit.org/api.html
+else
+	local f = load([[
+	_G.BITOPS.bor  = function (a,b) return a|b end ;
+	_G.BITOPS.band = function (a,b) return a&b end ;
+	_G.BITOPS.bnot = function (a)   return ~a  end ;
+	]])
+	f()
+	B = _G.BITOPS
+end
 
 -- require 'DataDumper'
 
@@ -599,12 +613,12 @@ The list of valid names is the keys of I<GetControlChars()>
 =head1 DOWNLOAD
 
 This module is available as a LuaRock in
-http://rocks.moonscript.org/modules/peterbillam
+http://luarocks.org/modules/peterbillam
 so you should be able to install it with the command:
 
  $ su
  Password:
- # luarocks install --server=http://rocks.moonscript.org readkey
+ # luarocks install readkey
 
 or:
 
@@ -615,7 +629,8 @@ http://search.cpan.org/perldoc?Term::ReadKey
 
 =head1 CHANGES
 
- 20140608 1.3 try xwininfo; switch doc over to using moonrocks
+ 20150417 1.4 works with lua 5.3
+ 20140608 1.3 switch pod and doc over to using moonrocks
  20131021 1.2 xwininfo lets GetTerminalSize work even after ReadLine
  20131021     ReadKey restarts the P.read() after any EINTR interrupt
  20131005 1.1 GetTerminalSize returns numbers, ReadMode no longer sets ISTRIP
@@ -630,12 +645,12 @@ see http://www.pjb.com.au/comp/contact.html
 
  http://search.cpan.org/perldoc?Term::ReadKey
  http://www.pjb.com.au/comp/lua/readkey.html
- http://rocks.moonscript.org/modules/peterbillam/readkey
+ http://luarocks.org/modules/peterbillam/readkey
  http://www.pjb.com.au/comp/lua/readline.html
- http://rocks.moonscript.org/modules/peterbillam/readline
+ http://luarocks.org/modules/peterbillam/readline
  http://www.pjb.com.au/comp/lua/terminfo.html
- http://rocks.moonscript.org/modules/peterbillam/terminfo
- http://rocks.moonscript.org/modules/gvvaughan/luaposix
+ http://luarocks.org/modules/peterbillam/terminfo
+ http://luarocks.org/modules/gvvaughan/luaposix
 
 =cut
 
